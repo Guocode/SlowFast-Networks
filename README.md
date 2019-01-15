@@ -193,7 +193,7 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
                             self.fast_inplanes,
                             planes * block.expansion,
                             kernel_size=1,
-                            stride=stride,
+                            stride=(1,stride,stride),
                             bias=False), nn.BatchNorm3d(planes * block.expansion))
 
             layers = []
@@ -218,7 +218,7 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
                             self.slow_inplanes,
                             planes * block.expansion,
                             kernel_size=1,
-                            stride=stride,
+                            stride=(1,stride,stride),
                             bias=False), nn.BatchNorm3d(planes * block.expansion))
 
             layers = []
