@@ -61,7 +61,7 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
             else:
                 raise ValueError("Unsupported head_conv!")
             self.conv2 = nn.Conv3d(
-                planes, planes, kernel_size=(1, 3, 3), stride=stride, padding=(0, 1, 1), bias=False)
+                planes, planes, kernel_size=(1, 3, 3), stride=(1,stride,stride), padding=(0, 1, 1), bias=False)
             self.bn2 = nn.BatchNorm3d(planes)
             self.conv3 = nn.Conv3d(planes, planes * 4, kernel_size=1, bias=False)
             self.bn3 = nn.BatchNorm3d(planes * 4)
