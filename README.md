@@ -1,7 +1,7 @@
 # SlowFast-Networks
 Implement of slowfast networks in Pytorch
-paper:https://arxiv.org/pdf/1812.03982.pdf
-
+paper: https://arxiv.org/pdf/1812.03982.pdf
+Any suggestion or discussion is welcomed
 
     """SlowFast_Network model for Pytorch.
     # Reference:
@@ -141,26 +141,36 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
                 block, 256, layers[2], shortcut_type, stride=2, head_conv=1)
             self.slow_res4 = self._make_layer_slow(
                 block, 512, layers[3], shortcut_type, stride=2, head_conv=1)
+                
+            self.Tconv1 = nn.Conv3d(8, 16, kernel_size=(5, 1, 1), stride=(alpha, 1, 1), padding=(2, 0, 0), bias=False)
+            self.Tconv2 = nn.Conv3d(32, 64, kernel_size=(5, 1, 1), stride=(alpha, 1, 1), padding=(2, 0, 0), bias=False)
+            self.Tconv3 = nn.Conv3d(64, 128, kernel_size=(5, 1, 1), stride=(alpha, 1, 1), padding=(2, 0, 0), bias=False)
+            self.Tconv4 = nn.Conv3d(128, 256, kernel_size=(5, 1, 1), stride=(alpha, 1, 1), padding=(2, 0, 0), bias=False)
+
             self.dp = nn.Dropout(dropout)
             self.fc = nn.Linear(self.fast_inplanes+self.slow_inplanes, class_num, bias=False)
 
         def forward(self, input):
 
-            slow = self.SlowPath(input[:, :, ::16, :, :])
-            fast = self.FastPath(input[:, :, ::2, :, :])
+            fast, Tc = self.FastPath(input[:, :, ::2, :, :])
+            slow = self.SlowPath(input[:, :, ::8, :, :], Tc)
             x = torch.cat([slow, fast], dim=1)
             x = self.dp(x)
             x = self.fc(x)
             return x
 
-        def SlowPath(self, input):
+        def SlowPath(self, input, Tc):
             x = self.slow_conv1(input)
             x = self.slow_bn1(x)
             x = self.slow_relu(x)
             x = self.slow_maxpool(x)
+            x = torch.cat([x, Tc[0]], dim=1)
             x = self.slow_res1(x)
+            x = torch.cat([x, Tc[1]], dim=1)
             x = self.slow_res2(x)
+            x = torch.cat([x, Tc[2]], dim=1)
             x = self.slow_res3(x)
+            x = torch.cat([x, Tc[3]], dim=1)
             x = self.slow_res4(x)
             x = nn.AdaptiveAvgPool3d(1)(x)
             x = x.view(-1, x.size(1))
@@ -171,13 +181,17 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
             x = self.fast_bn1(x)
             x = self.fast_relu(x)
             x = self.fast_maxpool(x)
+            Tc1 = self.Tconv1(x)
             x = self.fast_res1(x)
+            Tc2 = self.Tconv2(x)
             x = self.fast_res2(x)
+            Tc3 = self.Tconv3(x)
             x = self.fast_res3(x)
+            Tc4 = self.Tconv4(x)
             x = self.fast_res4(x)
             x = nn.AdaptiveAvgPool3d(1)(x)
             x = x.view(-1, x.size(1))
-            return x
+            return x, [Tc1, Tc2, Tc3, Tc4]
 
         def _make_layer_fast(self, block, planes, blocks, shortcut_type, stride=1, head_conv=1):
             downsample = None
@@ -193,7 +207,7 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
                             self.fast_inplanes,
                             planes * block.expansion,
                             kernel_size=1,
-                            stride=(1,stride,stride),
+                            stride=(1, stride, stride),
                             bias=False), nn.BatchNorm3d(planes * block.expansion))
 
             layers = []
@@ -215,19 +229,21 @@ paper:https://arxiv.org/pdf/1812.03982.pdf
                 else:
                     downsample = nn.Sequential(
                         nn.Conv3d(
-                            self.slow_inplanes,
+                            self.slow_inplanes + self.slow_inplanes // self.alpha * 2,
                             planes * block.expansion,
                             kernel_size=1,
-                            stride=(1,stride,stride),
+                            stride=(1, stride, stride),
                             bias=False), nn.BatchNorm3d(planes * block.expansion))
 
             layers = []
-            layers.append(block(self.slow_inplanes, planes, stride, downsample, head_conv=head_conv))
+            layers.append(block(self.slow_inplanes + self.slow_inplanes // self.alpha * 2, planes, stride, downsample,
+                                head_conv=head_conv))
             self.slow_inplanes = planes * block.expansion
             for i in range(1, blocks):
                 layers.append(block(self.slow_inplanes, planes, head_conv=head_conv))
 
             return nn.Sequential(*layers)
+
 
 
 
